@@ -43,18 +43,36 @@ async function forceResolutions() {
       // Parse package lock json
       let packageLockJSONContent = JSON.parse(packageLockJSON.toString());
 
+      // Use standalone resolutions file
+      const resolutionsJsonPath = `${currentWorkingDirectory}${properSlash}package-resolutions.json`;
+      const resolutionsJsonExists = await checkIfFileExists(resolutionsJsonPath);
+      const resolutionsJson = resolutionsJsonExists
+                              ? await promises.readFile( resolutionsJsonPath )
+                              : undefined;
+      const resolutionsObj = resolutionsJson 
+                              ? JSON.parse(resolutionsJson.toString())
+                              : undefined;
+
       // Map resolutions
-      const resolutions = packageJSONContent.resolutions;
+      const resolutions = resolutionsObj ? resolutionsObj.resolutions
+                        : packageJSONContent.resolutions;
 
       console.log(kleur.cyan("Applying forced resolutions"));
 
       if (resolutions) {
         // Iterate over all resolutions
         Object.keys(resolutions).forEach((resolution) => {
+
+          // Regex to identify resolution
+          const resolutionRegExp = new RegExp(`${resolution}$`)
+
           // Find paths of the resolutions
           const keyPaths = findKeyPaths(
             packageLockJSONContent,
-            (key) => key === resolution
+            (key, currentPath, currentObjectToAnalyze) => {
+              const testPath = [ ...currentPath, key ].join('.')
+              return resolutionRegExp.test(testPath)
+            }
           );
 
           // Modifications to be performed
@@ -63,13 +81,16 @@ async function forceResolutions() {
           // Iterate resolutions key paths
           keyPaths.forEach((keyPath) => {
             // Regex to identify dependencies key paths
-            const dependenciesRegex = /.dependencies./g;
+            const dependenciesRegex = /\.dependencies\./g;
 
             // Regex identify if npm 7
-            const packagesRegex = /packages./g;
+            const packagesRegex = /packages\./g;
+
+            // Regex identify of nested deps
+            const packagesDepsRegex = /packages\.node_modules\/.*node_modules\/.*/g;
 
             // Regex to identify requires key paths
-            const requiresRegex = /.requires./g;
+            const requiresRegex = /\.requires\./g;
 
             // Check the kind of key path and define modifications
             if (
@@ -88,11 +109,36 @@ async function forceResolutions() {
               // Delete requires
               modifications[`${keyPath}.requires`] = undefined;
 
-              // Handle npm 7 package lock json format
-            } else if (!!keyPath.match(packagesRegex)) {
-              // Change version
-              modifications[keyPath] = resolutions[resolution];
-            } else if (!!keyPath.match(requiresRegex)) {
+            }
+
+            // Handle npm 7 package lock json format
+            else if (!!keyPath.match(packagesRegex)) {
+
+              if (!!keyPath.match(packagesDepsRegex)) {
+                // Change version
+                modifications[`${keyPath}.version`] = resolutions[resolution];
+                // Delete resolved
+                modifications[`${keyPath}.resolved`] = undefined;
+
+                // Delete integrity
+                modifications[`${keyPath}.integrity`] = undefined;
+
+                // Delete requires
+                modifications[`${keyPath}.requires`] = undefined;
+
+                // Delete deprecated
+                modifications[`${keyPath}.deprecated`] = undefined;
+
+                // Delete dependencies
+                modifications[`${keyPath}.dependencies`] = undefined;
+              }
+              else {
+                // Change version
+                modifications[keyPath] = resolutions[resolution];
+              }
+            }
+
+            else if (!!keyPath.match(requiresRegex)) {
               // Change version on requires
               modifications[keyPath] = resolutions[resolution];
 
@@ -104,8 +150,7 @@ async function forceResolutions() {
               );
 
               // Set version
-              modifications[`${packageDependenciesPath}.version`] =
-                resolutions[resolution];
+              modifications[`${packageDependenciesPath}.version`] = resolutions[resolution];
               // Set resolved
               modifications[`${packageDependenciesPath}.resolved`] = undefined;
 
@@ -123,8 +168,10 @@ async function forceResolutions() {
             modifications
           );
 
-          modifications = {};
           console.log(kleur.dim(`${resolution} => ${resolutions[resolution]}`));
+          // console.log(modifications)
+          
+          modifications = {};
         });
 
         // Write final processed file
