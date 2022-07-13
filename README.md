@@ -1,24 +1,27 @@
  <p align="center">
-    <img src="https://raw.githubusercontent.com/angelogiuseppe/force-resolutions/master/assets/logo/force-resolutions-logo.png" alt="force-resolutions-logo">
+    <img src="https://raw.githubusercontent.com/badjeff/force-resolutions/master/assets/logo/force-resolutions-logo.png" alt="force-resolutions-logo">
 </p>
 
 ---
 
  <p align="center">
-This package modifies package-lock.json to force the installation of specified versions of a set of transitive dependencies (dependencies of dependencies).
+This package modifies package-lock.json to force the installation of specified versions of a set of transitive dependencies (dependencies of dependencies) by specifying key paths.
 </p>
 
 ---
 
 ### Getting started
 
-1. Add a field `resolutions` with the dependency version you want to fix at the main level of your `package.json`.
+1. Add a field `resolutions` with the dependency version you want to fix at the main level of your `package.json`. Or, add a new file named `package-resolutions.json` next to `package.json`
 
 Example:
 
 ```json
 "resolutions": {
-  "ssri": "8.0.5"
+  "packages.node_modules/carbone.dependencies.debug": "4.3.4",
+  "packages.node_modules/carbone/node_modules/debug": "4.3.4",
+  "dependencies.carbone.requires.debug": "4.3.4",
+  "dependencies.carbone.dependencies.debug": "4.3.4"
 }
 ```
 
@@ -26,7 +29,7 @@ Example:
 
 ```json
 "scripts": {
-  "preinstall": "npx force-resolutions"
+  "preinstall": "npx github:badjeff/force-resolutions"
 }
 ```
 
@@ -43,7 +46,7 @@ If a `package.lock.json` is not detected the script will not run, and any other 
 4. To confirm that the right version was installed, use:
 
 ```shell
-npm ls ssri
+npm ls carbone
 ```
 
 ---
